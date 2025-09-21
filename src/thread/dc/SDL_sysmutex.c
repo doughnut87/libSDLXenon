@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -21,6 +21,7 @@
 */
 #include "SDL_config.h"
 
+#ifdef SDL_THREAD_DC
 /* An implementation of mutexes using semaphores */
 
 #include "SDL_thread.h"
@@ -120,3 +121,4 @@ int SDL_mutexV(SDL_mutex *mutex)
 	return 0;
 #endif /* SDL_THREADS_DISABLED */
 }
+#endif

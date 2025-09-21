@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -117,6 +117,11 @@ static VideoBootStrap *bootstrap[] = {
 #if SDL_VIDEO_DRIVER_RISCOS
 	&RISCOS_bootstrap,
 #endif
+#if SDL_VIDEO_DRIVER_OS2GROP
+	&OS2DIVE_bootstrap,
+	&OS2VMAN_bootstrap,
+	&OS2VMANFS_bootstrap,
+#endif
 #if SDL_VIDEO_DRIVER_OS2FS
 	&OS2FSLib_bootstrap,
 #endif
@@ -126,9 +131,6 @@ static VideoBootStrap *bootstrap[] = {
 #if SDL_VIDEO_DRIVER_CACA
 	&CACA_bootstrap,
 #endif
-#if SDL_VIDEO_DRIVER_XENON
-	&XENON_bootstrap,
-#endif
 #if SDL_VIDEO_DRIVER_DUMMY
 	&DUMMY_bootstrap,
 #endif
@@ -136,6 +138,13 @@ static VideoBootStrap *bootstrap[] = {
 };
 
 SDL_VideoDevice *current_video = NULL;
+
+int refresh_rate = SDL_REFRESH_DEFAULT;
+
+void SDL_SetRefreshRate(int rate)
+{
+	refresh_rate = rate;
+}
 
 /* Various local functions */
 int SDL_VideoInit(const char *driver_name, Uint32 flags);
@@ -175,21 +184,25 @@ int SDL_VideoInit (const char *driver_name, Uint32 flags)
 	}
 
 	/* Select the proper video driver */
-	index = 0;
+	i = index = 0;
 	video = NULL;
 	if ( driver_name != NULL ) {
-#if 0	/* This will be replaced with a better driver selection API */
-		if ( SDL_strrchr(driver_name, ':') != NULL ) {
-			index = atoi(SDL_strrchr(driver_name, ':')+1);
-		}
-#endif
-		for ( i=0; bootstrap[i]; ++i ) {
-			if ( SDL_strcasecmp(bootstrap[i]->name, driver_name) == 0) {
-				if ( bootstrap[i]->available() ) {
-					video = bootstrap[i]->create(index);
-					break;
+		const char *driver_attempt = driver_name;
+		while(driver_attempt != NULL && *driver_attempt != 0 && video == NULL) {
+			const char* driver_attempt_end = SDL_strchr(driver_attempt, ',');
+			size_t driver_attempt_len = (driver_attempt_end != NULL) ? (driver_attempt_end - driver_attempt)
+			                                                         : SDL_strlen(driver_attempt);
+
+			for ( i=0; bootstrap[i]; ++i ) {
+				if ((driver_attempt_len == SDL_strlen(bootstrap[i]->name)) &&
+				    (SDL_strncasecmp(bootstrap[i]->name, driver_attempt, driver_attempt_len) == 0)) {
+					if ( bootstrap[i]->available() ) {
+						video = bootstrap[i]->create(index);
+						break;
+					}
 				}
 			}
+			driver_attempt = (driver_attempt_end != NULL) ? (driver_attempt_end + 1) : NULL;
 		}
 	} else {
 		for ( i=0; bootstrap[i]; ++i ) {
@@ -253,7 +266,6 @@ int SDL_VideoInit (const char *driver_name, Uint32 flags)
 
 	/* Create a zero sized video surface of the appropriate format */
 	video_flags = SDL_SWSURFACE;
- 
 	SDL_VideoSurface = SDL_CreateRGBSurface(video_flags, 0, 0,
 				vformat.BitsPerPixel,
 				vformat.Rmask, vformat.Gmask, vformat.Bmask, 0);
@@ -394,7 +406,7 @@ int SDL_VideoModeOK (int width, int height, int bpp, Uint32 flags)
 	supported = 0;
 	table = ((bpp+7)/8)-1;
 	SDL_closest_depths[table][0] = bpp;
-	SDL_closest_depths[table][7] = 0;
+	SDL_closest_depths[table][6] = 0;
 	for ( b = 0; !supported && SDL_closest_depths[table][b]; ++b ) {
 		format.BitsPerPixel = SDL_closest_depths[table][b];
 		sizes = SDL_ListModes(&format, flags);
@@ -466,7 +478,7 @@ static int SDL_GetVideoMode (int *w, int *h, int *BitsPerPixel, Uint32 flags)
 	supported = 0;
 	table = ((*BitsPerPixel+7)/8)-1;
 	SDL_closest_depths[table][0] = *BitsPerPixel;
-	SDL_closest_depths[table][7] = SDL_VideoSurface->format->BitsPerPixel;
+	SDL_closest_depths[table][6] = SDL_VideoSurface->format->BitsPerPixel;
 	for ( b = 0; !supported && SDL_closest_depths[table][b]; ++b ) {
 		int best;
 
@@ -577,6 +589,10 @@ static void SDL_CreateShadowSurface(int depth)
     #include <sys/neutrino.h>
 #endif /* __QNXNTO__ */
 
+#ifdef _WIN32
+	extern int sysevents_mouse_pressed;
+#endif
+
 /*
  * Set the requested video mode, allocating a shadow buffer if necessary.
  */
@@ -589,6 +605,10 @@ SDL_Surface * SDL_SetVideoMode (int width, int height, int bpp, Uint32 flags)
 	int video_bpp;
 	int is_opengl;
 	SDL_GrabMode saved_grab;
+
+	#if defined(_WIN32) && !defined(SDL_VIDEO_DISABLED)
+		sysevents_mouse_pressed = 0;
+	#endif
 
 	/* Start up the video driver, if necessary..
 	   WARNING: This is the only function protected this way!
@@ -813,9 +833,9 @@ SDL_Surface * SDL_SetVideoMode (int width, int height, int bpp, Uint32 flags)
 		   ) {
 			video->is_32bit = 0;
 			SDL_VideoSurface = SDL_CreateRGBSurface(
-				flags, 
-				width, 
-				height,  
+				flags,
+				width,
+				height,
 				16,
 				31 << 11,
 				63 << 5,
@@ -828,10 +848,10 @@ SDL_Surface * SDL_SetVideoMode (int width, int height, int bpp, Uint32 flags)
 		{
 			video->is_32bit = 1;
 			SDL_VideoSurface = SDL_CreateRGBSurface(
-				flags, 
-				width, 
-				height, 
-				32, 
+				flags,
+				width,
+				height,
+				32,
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
 				0x000000FF,
 				0x0000FF00,
@@ -880,10 +900,11 @@ SDL_Surface * SDL_SetVideoMode (int width, int height, int bpp, Uint32 flags)
 	}
 
 	/* Create a shadow surface if necessary */
-	/* There are three conditions under which we create a shadow surface:
+	/* There are four conditions under which we create a shadow surface:
 		1.  We need a particular bits-per-pixel that we didn't get.
 		2.  We need a hardware palette and didn't get one.
 		3.  We need a software surface and got a hardware surface.
+		4.  We need a double-buffered surface and got a plain hardware surface.
 	*/
 	if ( !(SDL_VideoSurface->flags & SDL_OPENGL) &&
 	     (
@@ -983,6 +1004,11 @@ SDL_Surface *SDL_DisplayFormatAlpha(SDL_Surface *surface)
 		if ( (vf->Rmask == 0xff) && (vf->Bmask == 0xff0000) ) {
 			rmask = 0xff;
 			bmask = 0xff0000;
+		} else if ( vf->Rmask == 0xFF00 && (vf->Bmask == 0xFF000000) ) {
+			amask = 0x000000FF;
+			rmask = 0x0000FF00;
+			gmask = 0x00FF0000;
+			bmask = 0xFF000000;
 		}
 		break;
 
@@ -1632,7 +1658,7 @@ void SDL_GL_Lock()
 		this->glDisable(GL_FOG);
 		this->glDisable(GL_ALPHA_TEST);
 		this->glDisable(GL_DEPTH_TEST);
-		this->glDisable(GL_SCISSOR_TEST);	
+		this->glDisable(GL_SCISSOR_TEST);
 		this->glDisable(GL_STENCIL_TEST);
 		this->glDisable(GL_CULL_FACE);
 
@@ -1680,6 +1706,9 @@ void SDL_GL_Unlock()
 #endif
 }
 
+
+void SDL_Audio_SetCaption(const char *caption);
+
 /*
  * Sets/Gets the title and icon text of the display window, if any.
  */
@@ -1705,7 +1734,11 @@ void SDL_WM_SetCaption (const char *title, const char *icon)
 			video->SetCaption(this, video->wm_title,video->wm_icon);
 		}
 	}
+
+	/* PulseAudio can make use of this information. */
+	SDL_Audio_SetCaption(title);
 }
+
 void SDL_WM_GetCaption (char **title, char **icon)
 {
 	SDL_VideoDevice *video = current_video;

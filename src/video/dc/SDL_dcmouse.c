@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -16,6 +16,11 @@
     License along with this library; if not, write to the Free Software
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+    BERO
+    bero@geocities.co.jp
+
+    based on SDL_nullvideo.h by
+
     Sam Lantinga
     slouken@libsdl.org
 */
@@ -23,8 +28,9 @@
 
 #include <stdio.h>
 
+#include "SDL_error.h"
 #include "SDL_mouse.h"
-#include "../../events/SDL_events_c.h"
+#include "SDL_events_c.h"
 
 #include "SDL_dcmouse_c.h"
 

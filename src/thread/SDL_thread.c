@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -214,7 +214,7 @@ DECLSPEC SDL_Thread * SDLCALL SDL_CreateThread(int (SDLCALL *fn)(void *), void *
 	SDL_Thread *thread;
 	thread_args *args;
 	int ret;
-	
+
 	/* Allocate memory for the thread info structure */
 	thread = (SDL_Thread *)SDL_malloc(sizeof(*thread));
 	if ( thread == NULL ) {
@@ -235,7 +235,6 @@ DECLSPEC SDL_Thread * SDLCALL SDL_CreateThread(int (SDLCALL *fn)(void *), void *
 	args->data = data;
 	args->info = thread;
 	args->wait = SDL_CreateSemaphore(0);
-
 	if ( args->wait == NULL ) {
 		SDL_free(thread);
 		SDL_free(args);

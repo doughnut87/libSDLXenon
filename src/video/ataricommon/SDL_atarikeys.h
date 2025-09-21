@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -27,7 +27,7 @@
  */
 
 #ifndef _SDL_ATARIKEYS_H_
-#define _SDL_ATARIKEYS_H_ 
+#define _SDL_ATARIKEYS_H_
 
 /* --- Keyboard scancodes --- */
 /* taken from svgalib/vgakeyboard.h */
@@ -94,6 +94,7 @@
 #define SCANCODE_LEFTALT	0x38
 #define SCANCODE_SPACE		0x39
 #define SCANCODE_CAPSLOCK	0x3a
+#define SCANCODE_ALTGR		0x4c	/* Milan's AltGr */
 
 /* Functions keys */
 #define SCANCODE_F1		0x3b
@@ -106,6 +107,17 @@
 #define SCANCODE_F8		0x42
 #define SCANCODE_F9		0x43
 #define SCANCODE_F10	0x44
+
+#define SCANCODE_SHIFT_F1	0x54
+#define SCANCODE_SHIFT_F2	0x55
+#define SCANCODE_SHIFT_F3	0x56
+#define SCANCODE_SHIFT_F4	0x57
+#define SCANCODE_SHIFT_F5	0x58
+#define SCANCODE_SHIFT_F6	0x59
+#define SCANCODE_SHIFT_F7	0x5a
+#define SCANCODE_SHIFT_F8	0x5b
+#define SCANCODE_SHIFT_F9	0x5c
+#define SCANCODE_SHIFT_F10	0x5d
 
 /* Numeric keypad */
 #define SCANCODE_KP0			0x70
@@ -136,5 +148,11 @@
 #define SCANCODE_DOWN		0x50
 #define SCANCODE_RIGHT		0x4d
 #define SCANCODE_LEFT		0x4b
+
+/* some keys give different scancode with CTRL */
+#define SCANCODE_CNTL_HOME	0x77
+#define SCANCODE_SHFT_HOME	0x4f
+#define SCANCODE_CNTL_LEFT	0x73
+#define SCANCODE_CNTL_RIGHT	0x74
 
 #endif /* _SDL_ATARIKEYS_H_ */

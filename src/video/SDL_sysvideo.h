@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -401,6 +401,11 @@ extern VideoBootStrap NDS_bootstrap;
 #if SDL_VIDEO_DRIVER_RISCOS
 extern VideoBootStrap RISCOS_bootstrap;
 #endif
+#if SDL_VIDEO_DRIVER_OS2GROP
+extern VideoBootStrap OS2DIVE_bootstrap;
+extern VideoBootStrap OS2VMAN_bootstrap;
+extern VideoBootStrap OS2VMANFS_bootstrap;
+#endif
 #if SDL_VIDEO_DRIVER_OS2FS
 extern VideoBootStrap OS2FSLib_bootstrap;
 #endif
@@ -413,12 +418,11 @@ extern VideoBootStrap CACA_bootstrap;
 #if SDL_VIDEO_DRIVER_DUMMY
 extern VideoBootStrap DUMMY_bootstrap;
 #endif
-#if SDL_VIDEO_DRIVER_XENON
-extern VideoBootStrap XENON_bootstrap;
-#endif
 
 /* This is the current video device */
 extern SDL_VideoDevice *current_video;
+
+extern int refresh_rate;
 
 #define SDL_VideoSurface	(current_video->screen)
 #define SDL_ShadowSurface	(current_video->shadow)

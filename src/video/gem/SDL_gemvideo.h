@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -36,7 +36,8 @@ struct WMcursor {
 #define _THIS	SDL_VideoDevice *this
 
 /* Functions prototypes */
-void GEM_wind_redraw(_THIS, int winhandle, short *inside);
+void GEM_RedrawWindow(_THIS, int winhandle, const GRECT *inside);
+void GEM_AlignWorkArea(_THIS, short windowid);
 
 /* Private display data */
 
@@ -48,46 +49,54 @@ void GEM_wind_redraw(_THIS, int winhandle, short *inside);
 #define SDL_NUMMODES	1		/* Fullscreen */
 
 struct SDL_PrivateVideoData {
+	/* Shared with SDL_geminit.c */
+	short vdi_handle;			/* VDI handle */
+	short bpp;					/* Colour depth */
+	short old_numcolors;		/* Number of colors in saved palette */
+	Uint16 old_palette[256][3];	/* Saved current palette */
+
+	short ap_id;
+	GRECT desk;					/* Desktop properties */
+	SDL_bool locked;			/* AES locked for fullscreen ? */
+	OBJECT *menubar;			/* Menu bar to force desktop to restore its menu bar when going from fullscreen */
+
+	/* Exclusive to SDL_gemvideo.h */
+
 	Uint16	buf2scr_ops;		/* Operations to get buffer to screen */
 	void *buffer1;				/* Our shadow buffers */
 	void *buffer2;
 
 	/* VDI infos */
-	short vdi_handle;			/* VDI handle */
 	short full_w, full_h;		/* Fullscreen size */
-	short bpp;					/* Colour depth */
 	short pixelsize;			/* Bytes per pixel */
-	short old_numcolors;		/* Number of colors in saved palette */
 	Uint16 pitch;				/* Line length */
 	Uint16 format;				/* Screen format */
 	void *screen;				/* Screen address */
 	Uint32 red, green, blue, alpha;	/* Screen components */
 	Uint32 screensize;
-	short	blit_coords[8];		/* Coordinates for bitblt */
-	MFDB	src_mfdb, dst_mfdb;	/* VDI MFDB for bitblt */
-	Uint16 old_palette[256][3];	/* Saved current palette */
+	MFDB	dst_mfdb;		/* VDI MFDB for bitblt */
 	Uint16 cur_palette[256][3];	/* SDL application palette */
 								/* Function to set/restore palette */
 	void (*setpalette)(_THIS, Uint16 newpal[256][3]);
 
 	/* GEM infos */
-	short desk_x, desk_y;		/* Desktop properties */
-	short desk_w, desk_h;
 	short win_handle;			/* Our window handle */
 	int window_type;			/* Window type */
+	GRECT work;					/* Window work area x,y,w,h */
 	const char *title_name;		/* Window title */
 	const char *icon_name;		/* Icon title */
 	short version;				/* AES version */
 	short wfeatures;			/* AES window features */
 	SDL_bool refresh_name;		/* Change window title ? */
 	SDL_bool window_fulled;		/* Window maximized ? */
+	SDL_bool iconified;			/* Window iconified ? */
 	SDL_bool mouse_relative;	/* Report relative mouse movement */
-	SDL_bool locked;			/* AES locked for fullscreen ? */
 	SDL_bool lock_redraw;		/* Prevent redraw till buffers are setup */
+	SDL_bool cursor_hidden;		/* Mouse cursor hidden flag */
+	SDL_bool align_windows;		/* align windows to 16-pixel boundary */
 	short message[8];			/* To self-send an AES message */
-	void *menubar;				/* Menu bar save buffer when going fullscreen */
-	SDL_bool use_dev_mouse;		/* Use /dev/mouse ? */
 	WMcursor *cursor;			/* To restore cursor when leaving/entering window */
+	WMcursor *prev_cursor;		/* Previous cursor */
 
 	SDL_bool fullscreen;		/* Fullscreen or windowed mode ? */
 	SDL_Rect *SDL_modelist[SDL_NUMMODES+1];	/* Mode list */
@@ -112,32 +121,32 @@ struct SDL_PrivateVideoData {
 #define VDI_bluemask		(this->hidden->blue)
 #define VDI_alphamask		(this->hidden->alpha)
 #define VDI_screensize		(this->hidden->screensize)
-#define VDI_src_mfdb		(this->hidden->src_mfdb)
 #define VDI_dst_mfdb		(this->hidden->dst_mfdb)
-#define VDI_blit_coords		(this->hidden->blit_coords)
 
-#define GEM_desk_x			(this->hidden->desk_x)
-#define GEM_desk_y			(this->hidden->desk_y)
-#define GEM_desk_w			(this->hidden->desk_w)
-#define GEM_desk_h			(this->hidden->desk_h)
+#define GEM_ap_id			(this->hidden->ap_id)
+#define GEM_desk			(this->hidden->desk)
 #define GEM_handle			(this->hidden->win_handle)
 #define GEM_win_type		(this->hidden->window_type)
+#define GEM_work			(this->hidden->work)
 #define GEM_title_name		(this->hidden->title_name)
 #define GEM_icon_name		(this->hidden->icon_name)
 #define GEM_refresh_name	(this->hidden->refresh_name)
 #define GEM_version			(this->hidden->version)
 #define GEM_wfeatures		(this->hidden->wfeatures)
 #define GEM_win_fulled		(this->hidden->window_fulled)
+#define GEM_iconified		(this->hidden->iconified)
 #define GEM_mouse_relative	(this->hidden->mouse_relative)
 #define GEM_locked			(this->hidden->locked)
 #define GEM_lock_redraw		(this->hidden->lock_redraw)
+#define GEM_cursor_hidden	(this->hidden->cursor_hidden)
+#define GEM_align_windows	(this->hidden->align_windows)
 #define GEM_message			(this->hidden->message)
 #define SDL_modelist		(this->hidden->SDL_modelist)
 #define GEM_icon			(this->hidden->icon)
 #define GEM_fullscreen		(this->hidden->fullscreen)
 #define GEM_menubar			(this->hidden->menubar)
-#define GEM_usedevmouse		(this->hidden->use_dev_mouse)
 #define GEM_cursor			(this->hidden->cursor)
+#define GEM_prev_cursor		(this->hidden->prev_cursor)
 
 #define GEM_buffer1			(this->hidden->buffer1)
 #define GEM_buffer2			(this->hidden->buffer2)

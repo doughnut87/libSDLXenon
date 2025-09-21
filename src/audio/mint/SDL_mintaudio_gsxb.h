@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -29,16 +29,6 @@
 
 #ifndef _SDL_mintaudio_gsxb_h
 #define _SDL_mintaudio_gsxb_h
-
-#include <mint/falcon.h>	/* for trap_14_xxx macros */
-
-/* GSXB Cookie */
-
-#define C_GSXB		0x47535842L
-
-/* Bit 5 in cookie _SND */
-
-#define SND_GSXB	(1<<5)
 
 /* NSoundcmd modes */
 
@@ -96,13 +86,5 @@
 #define CLK_44K		1
 #define CLK_22K		3
 #define CLK_11K		7
-
-/* Extra xbios functions */
-
-#define NSoundcmd(mode,data,data2)	\
-	(long)trap_14_wwl((short)130,(short)(mode),(short)(data),(long)(data2))
-#define NSetinterrupt(src_inter,cause,inth_addr)	\
-	(long)trap_14_wwwl((short)135,(short)(src_inter),(short)(cause),	\
-		(long)(inth_addr))
 
 #endif /* _SDL_mintaudio_gsxb_h */

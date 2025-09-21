@@ -178,7 +178,7 @@ static SDL_Rect    position;
 static int         x_vel, y_vel;
 static int	   alpha_vel;
 
-int LoadSprite(SDL_Surface *screen, char *file)
+int LoadSprite(SDL_Surface *screen, const char *file)
 {
 	SDL_Surface *converted;
 
@@ -505,14 +505,24 @@ fprintf(stderr, "Slept %d ticks\n", (SDL_GetTicks()-ticks));
 					}
 					break;
 				case SDL_KEYDOWN:
-#ifndef _WIN32_WCE
-					if ( event.key.keysym.sym == SDLK_ESCAPE ) {
-						done = 1;
-					}
-#else
+#ifdef _WIN32_WCE
 					// there is no ESC key at all
 					done = 1;
+#else
+					if ( event.key.keysym.sym == SDLK_ESCAPE ) {
+						done = 1;
+					} else if (event.key.keysym.sym == SDLK_t) {
+						videoflags ^= SDL_FULLSCREEN;
+						screen = SDL_SetVideoMode(w, h, video_bpp, videoflags);
+						if ( screen == NULL ) {
+							fprintf(stderr, "Couldn't toggle video mode: %s\n",
+									SDL_GetError());
+							quit(2);
+						}
+						FillBackground(screen);
+					}
 #endif
+
 					break;
 				case SDL_QUIT:
 					done = 1;

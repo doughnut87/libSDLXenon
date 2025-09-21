@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -20,6 +20,7 @@
     slouken@libsdl.org
 */
 #include "SDL_config.h"
+#include "SDL_stdinc.h"
 
 #ifdef SDL_CDROM_MINT
 
@@ -31,25 +32,25 @@
 
 #include <errno.h>
 
-#include <cdromio.h>
-#include <metados.h>
+#include <mint/cdromio.h>
+#include <mint/metados.h>
 
 #include "SDL_cdrom.h"
 #include "../SDL_syscdrom.h"
 
 /* Some ioctl() errno values which occur when the tray is empty */
 #ifndef ENOMEDIUM
-#define ENOMEDIUM ENOENT
+#define ENOMEDIUM 17
 #endif
-#define ERRNO_TRAYEMPTY(errno)	\
-	((errno == EIO)    || (errno == ENOENT) || \
-	 (errno == EINVAL) || (errno == ENOMEDIUM))
+#define ERRNO_TRAYEMPTY(err)	\
+	((err == -EIO)    || (err == -ENOENT) || \
+	 (err == -EINVAL) || (err == -ENOMEDIUM))
 
 /* The maximum number of CD-ROM drives we'll detect */
 #define MAX_DRIVES	32	
 
 typedef struct {
-	unsigned char device[3];	/* Physical device letter + ':' + '\0' */
+	char		device[3];	/* Physical device letter + ':' + '\0' */
 	metaopen_t	metaopen;		/* Infos on opened drive */
 } metados_drive_t;
 
@@ -75,23 +76,24 @@ int SDL_SYS_CDInit(void)
 	int i, handle;
 	struct cdrom_subchnl info;
 
+	SDL_numcds = 0;
+	SDL_memset(metados_drives, 0, sizeof(metados_drives));
+
 	Metainit(&metainit);
 	if (metainit.version == NULL) {
 #ifdef DEBUG_CDROM
 		fprintf(stderr, "MetaDOS not installed\n");
 #endif
-		return -1;
+		return 0;
 	}
 
 	if (metainit.drives_map == 0) {
 #ifdef DEBUG_CDROM
 		fprintf(stderr, "No MetaDOS devices present\n");
 #endif
-		return -1;
+		return 0;
 	}
 
-	SDL_numcds = 0;
-	
 	for (i='A'; i<='Z'; i++) {
 		metados_drives[SDL_numcds].device[0] = 0;
 		metados_drives[SDL_numcds].device[1] = ':';
@@ -100,9 +102,10 @@ int SDL_SYS_CDInit(void)
 		if (metainit.drives_map & (1<<(i-'A'))) {
 			handle = Metaopen(i, &metaopen);
 			if (handle == 0) {
+				long err;
 
 				info.cdsc_format = CDROM_MSF;
-				if ( (Metaioctl(i, METADOS_IOCTL_MAGIC, CDROMSUBCHNL, &info) == 0) || ERRNO_TRAYEMPTY(errno) ) {
+				if ( ((err = Metaioctl(i, METADOS_IOCTL_MAGIC, CDROMSUBCHNL, &info)) == 0) || ERRNO_TRAYEMPTY(err) ) {
 					metados_drives[SDL_numcds].device[0] = i;
 					++SDL_numcds;
 				}
@@ -161,7 +164,7 @@ static int SDL_SYS_CDioctl(int id, int command, void *arg)
 
 	retval = Metaioctl(metados_drives[id].device[0], METADOS_IOCTL_MAGIC, command, arg);
 	if ( retval < 0 ) {
-		SDL_SetError("ioctl() error: %s", strerror(errno));
+		SDL_SetError("ioctl() error: %s", strerror(-retval));
 	}
 	return(retval);
 }
@@ -221,10 +224,11 @@ static CDstatus SDL_SYS_CDStatus(SDL_CD *cdrom, int *position)
 	CDstatus status;
 	struct cdrom_tochdr toc;
 	struct cdrom_subchnl info;
+	int err;
 
 	info.cdsc_format = CDROM_MSF;
-	if ( SDL_SYS_CDioctl(cdrom->id, CDROMSUBCHNL, &info) < 0 ) {
-		if ( ERRNO_TRAYEMPTY(errno) ) {
+	if ( (err = SDL_SYS_CDioctl(cdrom->id, CDROMSUBCHNL, &info)) < 0 ) {
+		if ( ERRNO_TRAYEMPTY(err) ) {
 			status = CD_TRAYEMPTY;
 		} else {
 			status = CD_ERROR;

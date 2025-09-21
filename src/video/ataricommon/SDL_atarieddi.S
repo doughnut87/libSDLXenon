@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -20,6 +20,8 @@
     slouken@libsdl.org
 */
 
+#include "symbols.h"
+
 /*
  *	Read EdDI version
  *
@@ -28,15 +30,44 @@
 
 	.text
 
-	.globl	_Atari_get_EdDI_version
+	.globl	SYM(Atari_get_EdDI_version)
 
 /*--- Vector installer ---*/
 
-_Atari_get_EdDI_version:
-	movel	sp@(4),a0	/* Value of EdDI cookie */
+SYM(Atari_get_EdDI_version):
+#if defined(__mcoldfire__)
+	movel	sp@(4),a0
+	movel	a0,eddi_cookie
+	lea	sp@(-8),sp
+	moveml	d2/a2,sp@
+#else
+	movel	sp@(4),eddi_cookie
+	moveml	d2/a2,sp@-
+#endif
+
+	/* Supexec() to avoid crash on FreeMiNT with MP */
+	pea	get_EdDI_version(pc)
+	movew	#38,sp@-
+	trap	#14
+	addql	#6,sp
+
+#if defined(__mcoldfire__)
+	moveml	sp@,d2/a2
+	lea	sp@(8),sp
+#else
+	moveml	sp@+,d2/a2
+#endif
+	rts
+
+get_EdDI_version:
+	movel	eddi_cookie,a0
 
 	/* Call EdDI function #0 */
 	clrw	d0
-	jsr	(a0)
+	jmp	(a0)
 
-	rts
+	.bss
+
+	.even
+eddi_cookie:
+	.ds.l	1

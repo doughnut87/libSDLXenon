@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -37,6 +37,6 @@
 
 extern void AtariIkbd_InitOSKeymap(_THIS);
 extern void AtariIkbd_PumpEvents(_THIS);
-extern void AtariIkbd_ShutdownEvents(void);
+extern void AtariIkbd_ShutdownEvents(_THIS);
 
 #endif /* _SDL_ATARI_IKBDEVENTS_H_ */

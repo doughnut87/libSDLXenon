@@ -29,19 +29,19 @@ int main(int argc, char *argv[])
 		"UCS4",
 		"UCS-4",
 	};
+
+	const char * fname;
 	char buffer[BUFSIZ];
 	char *ucs4;
 	char *test[2];
-	int i, index = 0;
+	int i;
 	FILE *file;
 	int errors = 0;
 
-	if ( !argv[1] ) {
-		argv[1] = "utf8.txt";
-	}
-	file = fopen(argv[1], "rb");
+	fname = (argc < 2) ? "utf8.txt" : argv[1];
+	file = fopen(fname, "rb");
 	if ( !file ) {
-		fprintf(stderr, "Unable to open %s\n", argv[1]);
+		fprintf(stderr, "Unable to open %s\n", fname);
 		return (1);
 	}
 
@@ -69,5 +69,7 @@ int main(int argc, char *argv[])
 		fputs(test[0], stdout);
 		SDL_free(test[0]);
 	}
+
+	fprintf(stderr, "\nTotal errors: %d\n", errors);
 	return (errors ? errors + 1 : 0);
 }

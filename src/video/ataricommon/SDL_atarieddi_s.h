@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -49,6 +49,6 @@ enum {
 
 /*--- Functions ---*/
 
-unsigned long Atari_get_EdDI_version(void *function_pointer);
+unsigned short Atari_get_EdDI_version(void *function_pointer);
 
 #endif /* _SDL_Atari_eddi_s_h */

@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -97,7 +97,7 @@ int GEM_IconifyWindow(_THIS)
 	GEM_message[2] = 0;
 	GEM_message[3] = GEM_handle;
 	GEM_message[4] = 0;
-	GEM_message[5] = GEM_desk_h-ICONHEIGHT;
+	GEM_message[5] = GEM_desk.g_h-ICONHEIGHT;
 	GEM_message[6] = ICONWIDTH;
 	GEM_message[7] = ICONHEIGHT;
 

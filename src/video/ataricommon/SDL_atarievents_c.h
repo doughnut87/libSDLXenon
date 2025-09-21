@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -30,6 +30,7 @@
 #ifndef _SDL_ATARI_EVENTS_H_
 #define _SDL_ATARI_EVENTS_H_
 
+#include "SDL_keyboard.h"
 #include "../SDL_sysvideo.h"
 
 /* Hidden "this" pointer for the video functions */
@@ -37,29 +38,16 @@
 
 #define ATARIBIOS_MAXKEYS 128
 
-/* Special keys state */
-#ifndef K_RSHIFT
-enum {
-	K_RSHIFT=0,
-	K_LSHIFT,
-	K_CTRL,
-	K_ALT,
-	K_CAPSLOCK,
-	K_CLRHOME,
-	K_INSERT
-};
-#endif
+extern void SDL_Atari_InitializeEvents(_THIS);
 
-extern void (*Atari_ShutdownEvents)(void);
-
-extern void Atari_InitOSKeymap(_THIS);
-extern void Atari_PumpEvents(_THIS);
+extern void SDL_Atari_InitializeConsoleSettings(void);
+extern void SDL_Atari_RestoreConsoleSettings(void);
 
 extern void SDL_Atari_InitInternalKeymap(_THIS);
 
-/* Atari to Unicode charset translation table */
-extern Uint16 SDL_AtariToUnicodeTable[256];
+extern void SDL_AtariMint_BackgroundTasks(void);
+
 SDL_keysym *SDL_Atari_TranslateKey(int scancode, SDL_keysym *keysym,
-	SDL_bool pressed);
+	SDL_bool pressed, short kstate);
 
 #endif /* _SDL_ATARI_EVENTS_H_ */

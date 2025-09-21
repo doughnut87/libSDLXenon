@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -138,6 +138,7 @@ typedef struct SDL_Surface {
 #define SDL_ANYFORMAT	0x10000000	/**< Allow any video depth/pixel-format */
 #define SDL_HWPALETTE	0x20000000	/**< Surface has exclusive palette */
 #define SDL_DOUBLEBUF	0x40000000	/**< Set up double-buffered video mode */
+#define SDL_TRIPLEBUF	0x40000100	/**< Set up triple-buffered video mode */
 #define SDL_FULLSCREEN	0x80000000	/**< Surface is a full screen display */
 #define SDL_OPENGL      0x00000002      /**< Create an OpenGL rendering context */
 #define SDL_OPENGLBLIT	0x0000000A	/**< Create an OpenGL rendering context and use it for blitting */
@@ -941,7 +942,15 @@ extern DECLSPEC SDL_GrabMode SDLCALL SDL_WM_GrabInput(SDL_GrabMode mode);
 /** @internal Not in public API at the moment - do not use! */
 extern DECLSPEC int SDLCALL SDL_SoftStretch(SDL_Surface *src, SDL_Rect *srcrect,
                                     SDL_Surface *dst, SDL_Rect *dstrect);
-                    
+
+#define SDL_REFRESH_DEFAULT 0
+
+/*
+ * Set the desired refresh rate, in Hz.  This takes effect on the next
+ * video mode change.
+ */
+extern DECLSPEC void SDLCALL SDL_SetRefreshRate(int rate);
+
 /* Ends C function definitions when using C++ */
 #ifdef __cplusplus
 }

@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -655,8 +655,7 @@ void SDL_DrawCursor(SDL_Surface *screen)
 	if ( SDL_MUSTLOCK(screen) ) {
 		SDL_UnlockSurface(screen);
 	}
-	if ( (screen == SDL_VideoSurface) &&
-	     ((screen->flags & SDL_HWSURFACE) != SDL_HWSURFACE) ) {
+	if ( screen == SDL_VideoSurface ) {
 		SDL_VideoDevice *video = current_video;
 		SDL_VideoDevice *this  = current_video;
 		SDL_Rect area;
@@ -729,8 +728,7 @@ void SDL_EraseCursor(SDL_Surface *screen)
 	if ( SDL_MUSTLOCK(screen) ) {
 		SDL_UnlockSurface(screen);
 	}
-	if ( (screen == SDL_VideoSurface) &&
-	     ((screen->flags & SDL_HWSURFACE) != SDL_HWSURFACE) ) {
+	if ( screen == SDL_VideoSurface ) {
 		SDL_VideoDevice *video = current_video;
 		SDL_VideoDevice *this  = current_video;
 		SDL_Rect area;

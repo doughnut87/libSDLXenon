@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,7 @@
 
 /*
  * Xbios SDL video driver
- * 
+ *
  * Patrice Mandin
  */
 
@@ -32,31 +32,27 @@
 
 /* Mint includes */
 #include <mint/cookie.h>
-#include <mint/osbind.h>
 #include <mint/falcon.h>
+#include <mint/osbind.h>
+#include <mint/ostruct.h>
 
 #include "SDL_video.h"
-#include "SDL_mouse.h"
 #include "../SDL_sysvideo.h"
 #include "../SDL_pixels_c.h"
 #include "../../events/SDL_events_c.h"
 
 #include "../ataricommon/SDL_ataric2p_s.h"
 #include "../ataricommon/SDL_atarievents_c.h"
-#include "../ataricommon/SDL_atarimxalloc_c.h"
 #include "../ataricommon/SDL_atarigl_c.h"
+#include "../ataricommon/SDL_atarimxalloc_c.h"
+#include "../ataricommon/SDL_geminit_c.h"
+
 #include "SDL_xbios.h"
-#include "SDL_xbios_blowup.h"
-#include "SDL_xbios_centscreen.h"
+#include "SDL_xbios_milan.h"
 #include "SDL_xbios_sb3.h"
 #include "SDL_xbios_tveille.h"
-#include "SDL_xbios_milan.h"
 
 #define XBIOS_VID_DRIVER_NAME "xbios"
-
-#ifndef C_fVDI
-#define C_fVDI 0x66564449L
-#endif
 
 /* Debug print info */
 #if 0
@@ -74,7 +70,6 @@
 static int XBIOS_VideoInit(_THIS, SDL_PixelFormat *vformat);
 static SDL_Rect **XBIOS_ListModes(_THIS, SDL_PixelFormat *format, Uint32 flags);
 static SDL_Surface *XBIOS_SetVideoMode(_THIS, SDL_Surface *current, int width, int height, int bpp, Uint32 flags);
-static int XBIOS_SetColors(_THIS, int firstcolor, int ncolors, SDL_Color *colors);
 static void XBIOS_VideoQuit(_THIS);
 
 /* Hardware surface functions */
@@ -90,73 +85,22 @@ static void XBIOS_UpdateRects(_THIS, int numrects, SDL_Rect *rects);
 static void XBIOS_GL_SwapBuffers(_THIS);
 #endif
 
-/* To setup palette */
-
-static unsigned short	TT_palette[256];
-static unsigned long	F30_palette[256];
-
-/* Default list of video modes */
-
-static const xbiosmode_t stmodes[1]={
-	{ST_LOW>>8,320,200,4, XBIOSMODE_C2P}
-};
-
-static const xbiosmode_t ttmodes[2]={
-	{TT_LOW,320,480,8, XBIOSMODE_C2P},
-	{TT_LOW,320,240,8, XBIOSMODE_C2P|XBIOSMODE_DOUBLELINE}
-};
-
-static const xbiosmode_t falconrgbmodes[16]={
-	{BPS16|COL80|OVERSCAN|VERTFLAG,768,480,16,0},
-	{BPS16|COL80|OVERSCAN,768,240,16,0},
-	{BPS16|COL80|VERTFLAG,640,400,16,0},
-	{BPS16|COL80,640,200,16,0},
-	{BPS16|OVERSCAN|VERTFLAG,384,480,16,0},
-	{BPS16|OVERSCAN,384,240,16,0},
-	{BPS16|VERTFLAG,320,400,16,0},
-	{BPS16,320,200,16,0},
-	{BPS8|COL80|OVERSCAN|VERTFLAG,768,480,8,XBIOSMODE_C2P},
-	{BPS8|COL80|OVERSCAN,768,240,8,XBIOSMODE_C2P},
-	{BPS8|COL80|VERTFLAG,640,400,8,XBIOSMODE_C2P},
-	{BPS8|COL80,640,200,8,XBIOSMODE_C2P},
-	{BPS8|OVERSCAN|VERTFLAG,384,480,8,XBIOSMODE_C2P},
-	{BPS8|OVERSCAN,384,240,8,XBIOSMODE_C2P},
-	{BPS8|VERTFLAG,320,400,8,XBIOSMODE_C2P},
-	{BPS8,320,200,8,XBIOSMODE_C2P}
-};
-
-static const xbiosmode_t falconvgamodes[6]={
-	{BPS16,320,480,16,0},
-	{BPS16|VERTFLAG,320,240,16,0},
-	{BPS8|COL80,640,480,8,XBIOSMODE_C2P},
-	{BPS8|COL80|VERTFLAG,640,240,8,XBIOSMODE_C2P},
-	{BPS8,320,480,8,XBIOSMODE_C2P},
-	{BPS8|VERTFLAG,320,240,8,XBIOSMODE_C2P}
-};
+static SDL_bool shadow_warning_shown;
 
 /* Xbios driver bootstrap functions */
 
+static long cookie_vdo, cookie_nova;
+
 static int XBIOS_Available(void)
 {
-	unsigned long cookie_vdo, cookie_mil, cookie_hade, cookie_scpn;
-	unsigned long cookie_fvdi;
-	const char *envr = SDL_getenv("SDL_VIDEODRIVER");
+	long cookie_scpn;
 
-	/* Milan/Hades Atari clones do not have an Atari video chip */
-	if ( /*(Getcookie(C__MIL, &cookie_mil) == C_FOUND) ||*/
-		(Getcookie(C_hade, &cookie_hade) == C_FOUND) ) {
-		return 0;
-	}
-
-	/* fVDI means graphic card, so no Xbios with it */
-	if (Getcookie(C_fVDI, &cookie_fvdi) == C_FOUND) {
-		if (!envr) {
+	/* NOVA card ? */
+	if (Getcookie(C_NOVA, &cookie_nova) != C_FOUND) {
+		/* Hades does not have neither Atari video chip nor compatible Xbios */
+		if (Getcookie(C_hade, NULL) == C_FOUND) {
 			return 0;
 		}
-		if (SDL_strcmp(envr, XBIOS_VID_DRIVER_NAME)!=0) {
-			return 0;
-		}
-		/* Except if we force Xbios usage, through env var */
 	}
 
 	/* Cookie _VDO present ? if not, assume ST machine */
@@ -164,31 +108,51 @@ static int XBIOS_Available(void)
 		cookie_vdo = VDO_ST << 16;
 	}
 
-	/* Test if we have a monochrome monitor plugged in */
-	switch( cookie_vdo >>16) {
-		case VDO_ST:
-		case VDO_STE:
-			if ( Getrez() == (ST_HIGH>>8) )
-				return 0;
-			break;
-		case VDO_TT:
-			if ( (EgetShift() & ES_MODE) == TT_HIGH)
-				return 0;
-			break;
-		case VDO_F30:
-			if ( VgetMonitor() == MONITOR_MONO)
-				return 0;
-			if (Getcookie(C_SCPN, &cookie_scpn) == C_FOUND) {
-				if (!SDL_XBIOS_SB3Usable((scpn_cookie_t *)cookie_scpn)) {
-					return 0;
-				}
-			}
-			break;
-		case VDO_MILAN:
-			break;
-		default:
+	/* fVDI/Milan means graphic card, so no Xbios with it */
+	if (Getcookie(C_fVDI, NULL) == C_FOUND || (cookie_vdo >>16) == VDO_MILAN) {
+		const char *envr = SDL_getenv("SDL_VIDEODRIVER");
+
+		if (!envr) {
 			return 0;
+		}
+		if (SDL_strcmp(envr, XBIOS_VID_DRIVER_NAME)!=0) {
+			return 0;
+		}
+		/* Except if we force Xbios usage, through env var.
+		 * The Milan officially has XBIOS support but it seems that only on
+		 * S3 Trio graphics cards. As this hasn't been confirmed yet and
+		 * the ATI Rage driver definitely doesn't provide it, disable it
+		 * by default.
+		 */
 	}
+
+	/* Test if we have a monochrome monitor plugged in */
+    if (cookie_nova == 0) {
+        switch( cookie_vdo >>16) {
+            case VDO_ST:
+            case VDO_STE:
+                if ( Getrez() == (ST_HIGH>>8) )
+                    return 0;
+                break;
+            case VDO_TT:
+                if ( Getrez() == (TT_HIGH>>8) )
+                    return 0;
+                break;
+            case VDO_F30:
+                if ( VgetMonitor() == MONITOR_MONO)
+                    return 0;
+                if (Getcookie(C_SCPN, &cookie_scpn) == C_FOUND) {
+                    if (!SDL_XBIOS_SB3Usable((scpn_cookie_t *)cookie_scpn)) {
+                        return 0;
+                    }
+                }
+                break;
+            case VDO_MILAN:
+                break;
+            default:
+                return 0;
+        }
+    }
 
 	return 1;
 }
@@ -226,8 +190,8 @@ static SDL_VideoDevice *XBIOS_CreateDevice(int devindex)
 	device->VideoInit = XBIOS_VideoInit;
 	device->ListModes = XBIOS_ListModes;
 	device->SetVideoMode = XBIOS_SetVideoMode;
-	device->SetColors = XBIOS_SetColors;
-	device->UpdateRects = NULL;
+	device->SetColors = NULL;	/* Defined by each device specific backend */
+	device->UpdateRects = NULL;	/* Defined once video mode set */
 	device->VideoQuit = XBIOS_VideoQuit;
 	device->AllocHWSurface = XBIOS_AllocHWSurface;
 	device->LockHWSurface = XBIOS_LockHWSurface;
@@ -244,11 +208,35 @@ static SDL_VideoDevice *XBIOS_CreateDevice(int devindex)
 	device->GL_SwapBuffers = XBIOS_GL_SwapBuffers;
 #endif
 
-	/* Events */
-	device->InitOSKeymap = Atari_InitOSKeymap;
-	device->PumpEvents = Atari_PumpEvents;
+	/* Events (XBIOS/IKBD driver) */
+	SDL_Atari_InitializeEvents(device);
 
 	device->free = XBIOS_DeleteDevice;
+
+	device->hidden->updRects = XBIOS_UpdateRects;
+
+	/* Setup device specific functions, default to ST for everything */
+	SDL_XBIOS_VideoInit_ST(device, cookie_vdo);
+
+	switch (cookie_vdo>>16) {
+		case VDO_ST:
+		case VDO_STE:
+			/* Already done as default */
+			break;
+		case VDO_TT:
+			SDL_XBIOS_VideoInit_TT(device);
+			break;
+		case VDO_F30:
+			SDL_XBIOS_VideoInit_F30(device);
+			break;
+		case VDO_MILAN:
+			SDL_XBIOS_VideoInit_Milan(device);
+			break;
+	}
+
+	if (cookie_nova) {
+		SDL_XBIOS_VideoInit_Nova(device, (void *) cookie_nova);
+	}
 
 	return device;
 }
@@ -302,7 +290,7 @@ void SDL_XBIOS_AddMode(_THIS, int actually_add, const xbiosmode_t *modeinfo)
 		if ( saved_rect[b].w && saved_rect[b].h ) {
 		    for ( ++j; SDL_modelist[i][j]->w; ++j ) {
 			saved_rect[!b] = *SDL_modelist[i][j];
-			memcpy(&saved_mode[!b], SDL_xbiosmode[i][j], sizeof(xbiosmode_t));
+			SDL_memcpy(&saved_mode[!b], SDL_xbiosmode[i][j], sizeof(xbiosmode_t));
 			*SDL_modelist[i][j] = saved_rect[b];
 			SDL_memcpy(SDL_xbiosmode[i][j], &saved_mode[b], sizeof(xbiosmode_t));
 			b = !b;
@@ -315,55 +303,19 @@ void SDL_XBIOS_AddMode(_THIS, int actually_add, const xbiosmode_t *modeinfo)
 	}
 }
 
-static void XBIOS_ListSTModes(_THIS, int actually_add)
-{
-	SDL_XBIOS_AddMode(this, actually_add, &stmodes[0]);
-}
-
-static void XBIOS_ListTTModes(_THIS, int actually_add)
-{
-	int i;
-
-	for (i=0; i<2; i++) {
-		SDL_XBIOS_AddMode(this, actually_add, &ttmodes[i]);
-	}
-}
-
-static void XBIOS_ListFalconRgbModes(_THIS, int actually_add)
-{
-	int i;
-
-	for (i=0; i<16; i++) {
-		xbiosmode_t modeinfo;
-
-		SDL_memcpy(&modeinfo, &falconrgbmodes[i], sizeof(xbiosmode_t));
-		modeinfo.number &= ~(VGA|PAL);
-		modeinfo.number |= XBIOS_oldvmode & (VGA|PAL);
-
-		SDL_XBIOS_AddMode(this, actually_add, &modeinfo);
-	}
-}
-
-static void XBIOS_ListFalconVgaModes(_THIS, int actually_add)
-{
-	int i;
-
-	for (i=0; i<6; i++) {
-		xbiosmode_t modeinfo;
-
-		SDL_memcpy(&modeinfo, &falconvgamodes[i], sizeof(xbiosmode_t));
-		modeinfo.number &= ~(VGA|PAL);
-		modeinfo.number |= XBIOS_oldvmode & (VGA|PAL);
-
-		SDL_XBIOS_AddMode(this, actually_add, &modeinfo);
-	}
-}
-
+/* Called after XBIOS_CreateDevice, and SDL_XBIOS_VideoInit_ST (and its follow-ups) */
 static int XBIOS_VideoInit(_THIS, SDL_PixelFormat *vformat)
 {
-	int i,j8,j16;
-	xbiosmode_t *current_mode;
-	unsigned long cookie_blow, cookie_scpn, cookie_cnts;
+	int i;
+
+	if (!GEM_CommonInit(&GEM_ap_id, &VDI_handle))
+		return(-1);
+
+	GEM_CommonCreateMenubar(this);
+
+	GEM_CommonSavePalette(this);
+
+	GEM_LockScreen(this, SDL_TRUE);
 
 	/* Initialize all variables that we clean on shutdown */
 	for ( i=0; i<NUM_MODELISTS; ++i ) {
@@ -372,23 +324,6 @@ static int XBIOS_VideoInit(_THIS, SDL_PixelFormat *vformat)
 		SDL_xbiosmode[i] = NULL;
 	}
 
-	/* Cookie _VDO present ? if not, assume ST machine */
-	if (Getcookie(C__VDO, &XBIOS_cvdo) != C_FOUND) {
-		XBIOS_cvdo = VDO_ST << 16;
-	}
-
-	/* Allocate memory for old palette */
-	XBIOS_oldpalette = (void *)SDL_malloc(256*sizeof(long));
-	if ( !XBIOS_oldpalette ) {
-		SDL_SetError("Unable to allocate memory for old palette\n");
-		return(-1);
-	}
-
-	/* Initialize video mode list */
-	/* and save current screen status (palette, screen address, video mode) */
-	XBIOS_centscreen = SDL_FALSE;
-	XBIOS_oldvbase = Physbase();
-
 	/* Determine the current screen size */
 	this->info.current_w = 0;
 	this->info.current_h = 0;
@@ -396,128 +331,11 @@ static int XBIOS_VideoInit(_THIS, SDL_PixelFormat *vformat)
 	/* Determine the screen depth (use default 8-bit depth) */
 	vformat->BitsPerPixel = 8;
 
+	/* Save current mode, may update current screen size or preferred depth */
+	(*XBIOS_saveMode)(this, vformat);
+
 	/* First allocate room for needed video modes */
-	switch (XBIOS_cvdo >>16) {
-		case VDO_ST:
-		case VDO_STE:
-			{
-				short *oldpalette;
-			
-				XBIOS_oldvmode=Getrez();
-				switch(XBIOS_oldvmode << 8) {
-					case ST_LOW:
-						XBIOS_oldnumcol=16;
-						break;
-					case ST_MED:
-						XBIOS_oldnumcol=4;
-						break;
-					case ST_HIGH:
-						XBIOS_oldnumcol=2;
-						break;
-				}
-
-				oldpalette= (short *) XBIOS_oldpalette;
-				for (i=0;i<XBIOS_oldnumcol;i++) {
-					*oldpalette++=Setcolor(i,-1);
-				}
-
-				XBIOS_ListSTModes(this, 0);
-			}
-			break;
-		case VDO_TT:
-			XBIOS_oldvmode=EgetShift();
-
-			switch(XBIOS_oldvmode & ES_MODE) {
-				case TT_LOW:
-					XBIOS_oldnumcol=256;
-					break;
-				case ST_LOW:
-				case TT_MED:
-					XBIOS_oldnumcol=16;
-					break;
-				case ST_MED:
-					XBIOS_oldnumcol=4;
-					break;
-				case ST_HIGH:
-				case TT_HIGH:
-					XBIOS_oldnumcol=2;
-					break;
-			}
-			if (XBIOS_oldnumcol) {
-				EgetPalette(0, XBIOS_oldnumcol, XBIOS_oldpalette);
-			}
-
-			XBIOS_ListTTModes(this, 0);
-			break;
-		case VDO_F30:
-			XBIOS_oldvmode=VsetMode(-1);
-
-			XBIOS_oldnumcol= 1<< (1 << (XBIOS_oldvmode & NUMCOLS));
-			if (XBIOS_oldnumcol > 256) {
-				XBIOS_oldnumcol = 0;
-			}
-			if (XBIOS_oldnumcol) {
-				VgetRGB(0, XBIOS_oldnumcol, XBIOS_oldpalette);
-			}
-
-			vformat->BitsPerPixel = 16;
-
-			/* ScreenBlaster 3 ? */
-			if (Getcookie(C_SCPN, &cookie_scpn) == C_FOUND) {
-				SDL_XBIOS_ListSB3Modes(this, 0, (scpn_cookie_t *)cookie_scpn);
-			} else
-			/* Centscreen ? */
-			if (Getcookie(C_CNTS, &cookie_cnts) == C_FOUND) {
-				XBIOS_oldvmode = SDL_XBIOS_ListCentscreenModes(this, 0);
-				XBIOS_centscreen = SDL_TRUE;
-			} else
-			/* Standard, with or without Blowup */
-			{
-				switch (VgetMonitor())
-				{
-					case MONITOR_RGB:
-					case MONITOR_TV:
-						XBIOS_ListFalconRgbModes(this, 0);
-						break;
-					case MONITOR_VGA:
-						XBIOS_ListFalconVgaModes(this, 0);
-						break;
-				}
-
-				if (Getcookie(C_BLOW, &cookie_blow) == C_FOUND) {
-					SDL_XBIOS_ListBlowupModes(this, 0, (blow_cookie_t *)cookie_blow);
-				}
-			}
-			break;
-		case VDO_MILAN:
-			{
-				SCREENINFO si;
-
-				/* Read infos about current mode */ 
-				VsetScreen(-1, &XBIOS_oldvmode, MI_MAGIC, CMD_GETMODE);
-
-				si.size = sizeof(SCREENINFO);
-				si.devID = XBIOS_oldvmode;
-				si.scrFlags = 0;
-				VsetScreen(-1, &si, MI_MAGIC, CMD_GETINFO);
-
-				this->info.current_w = si.scrWidth;
-				this->info.current_h = si.scrHeight;
-
-				XBIOS_oldnumcol = 0;
-				if (si.scrFlags & SCRINFO_OK) {
-					if (si.scrPlanes <= 8) {
-						XBIOS_oldnumcol = 1<<si.scrPlanes;
-					}
-				}
-				if (XBIOS_oldnumcol) {
-					VgetRGB(0, XBIOS_oldnumcol, XBIOS_oldpalette);
-				}
-
-				SDL_XBIOS_ListMilanModes(this, 0);
-			}
-			break;
-	}
+	(*XBIOS_listModes)(this, 0);
 
 	for ( i=0; i<NUM_MODELISTS; ++i ) {
 		int j;
@@ -556,46 +374,7 @@ static int XBIOS_VideoInit(_THIS, SDL_PixelFormat *vformat)
 	}
 
 	/* Now fill the mode list */
-	switch (XBIOS_cvdo >>16) {
-		case VDO_ST:
-		case VDO_STE:
-			XBIOS_ListSTModes(this, 1);
-			break;
-		case VDO_TT:
-			XBIOS_ListTTModes(this, 1);
-			break;
-		case VDO_F30:
-			/* ScreenBlaster 3 ? */
-			if (Getcookie(C_SCPN, &cookie_scpn) == C_FOUND) {
-				SDL_XBIOS_ListSB3Modes(this, 1, (scpn_cookie_t *)cookie_scpn);
-			} else
-			/* Centscreen ? */
-			if (Getcookie(C_CNTS, &cookie_cnts) == C_FOUND) {
-				XBIOS_oldvmode = SDL_XBIOS_ListCentscreenModes(this, 1);
-				XBIOS_centscreen = SDL_TRUE;
-			} else
-			/* Standard, with or without Blowup */
-			{
-				switch (VgetMonitor())
-				{
-					case MONITOR_RGB:
-					case MONITOR_TV:
-						XBIOS_ListFalconRgbModes(this, 1);
-						break;
-					case MONITOR_VGA:
-						XBIOS_ListFalconVgaModes(this, 1);
-						break;
-				}
-
-				if (Getcookie(C_BLOW, &cookie_blow) == C_FOUND) {
-					SDL_XBIOS_ListBlowupModes(this, 1, (blow_cookie_t *)cookie_blow);
-				}
-			}
-			break;
-		case VDO_MILAN:
-			SDL_XBIOS_ListMilanModes(this, 1);
-			break;
-	}
+	(*XBIOS_listModes)(this, 1);
 
 	XBIOS_screens[0]=NULL;
 	XBIOS_screens[1]=NULL;
@@ -603,10 +382,7 @@ static int XBIOS_VideoInit(_THIS, SDL_PixelFormat *vformat)
 
 	/* Update hardware info */
 	this->info.hw_available = 1;
-	this->info.video_mem = (Uint32) Atari_SysMalloc(-1L, MX_STRAM);
-
-	/* Init chunky to planar routine */
-	SDL_Atari_C2pConvert = SDL_Atari_C2pConvert8;
+	this->info.video_mem = (Uint32) Atari_SysMalloc(-1L, MX_STRAM) / 1024;
 
 #if SDL_VIDEO_OPENGL
 	SDL_AtariGL_InitPointers(this);
@@ -616,6 +392,9 @@ static int XBIOS_VideoInit(_THIS, SDL_PixelFormat *vformat)
 	if (SDL_XBIOS_TveillePresent(this)) {
 		SDL_XBIOS_TveilleDisable(this);
 	}
+
+	/* Save & init CON: */
+	SDL_Atari_InitializeConsoleSettings();
 
 	/* We're done! */
 	return(0);
@@ -628,35 +407,24 @@ static SDL_Rect **XBIOS_ListModes(_THIS, SDL_PixelFormat *format, Uint32 flags)
 
 static void XBIOS_FreeBuffers(_THIS)
 {
-	int i;
+	(*XBIOS_freeVbuffers)(this);
 
-	for (i=0;i<2;i++) {
-		if (XBIOS_screensmem[i]!=NULL) {
-			if ((XBIOS_cvdo>>16) == VDO_MILAN) {
-				if (i==1) {
-					VsetScreen(-1, -1, MI_MAGIC, CMD_FREEPAGE);
-				}
-			} else {
-				Mfree(XBIOS_screensmem[i]);
-			}
-			XBIOS_screensmem[i]=NULL;
-		}
+	if (XBIOS_shadowscreenmem) {
+		Mfree(XBIOS_shadowscreenmem);
+		XBIOS_shadowscreenmem=NULL;
 	}
-
-	if (XBIOS_shadowscreen!=NULL) {
-		Mfree(XBIOS_shadowscreen);
-		XBIOS_shadowscreen=NULL;
-	}
+	XBIOS_shadowscreen=NULL;
 }
 
 static SDL_Surface *XBIOS_SetVideoMode(_THIS, SDL_Surface *current,
 				int width, int height, int bpp, Uint32 flags)
 {
 	int mode, new_depth;
-	int i, num_buffers;
+	int num_buffers;
 	xbiosmode_t *new_video_mode;
 	Uint32 new_screen_size;
-	Uint32 modeflags;
+	Uint32 modeflags, lineWidth;
+	Uint32 rmask, gmask, bmask, amask;
 
 	/* Free current buffers */
 	XBIOS_FreeBuffers(this);
@@ -675,37 +443,37 @@ static SDL_Surface *XBIOS_SetVideoMode(_THIS, SDL_Surface *current,
 	}
 	new_video_mode = SDL_xbiosmode[bpp][mode];
 
-	modeflags = SDL_FULLSCREEN | SDL_PREALLOC;
+	modeflags = SDL_FULLSCREEN | SDL_PREALLOC | SDL_HWPALETTE;
+	/* By default keep the hardware flag */
+	modeflags |= (flags & SDL_HWSURFACE);
 
 	/* Allocate needed buffers: simple/double buffer and shadow surface */
-	new_depth = new_video_mode->depth;
-	if (new_depth == 4) {
-		SDL_Atari_C2pConvert = SDL_Atari_C2pConvert4;
-		new_depth=8;
-		modeflags |= SDL_SWSURFACE|SDL_HWPALETTE;
-	} else if (new_depth == 8) {
-		SDL_Atari_C2pConvert = SDL_Atari_C2pConvert8;
-		modeflags |= SDL_SWSURFACE|SDL_HWPALETTE;
-	} else {
-		modeflags |= SDL_HWSURFACE;
-	}
+	new_depth = new_video_mode->depth < 8 ? 8 : new_video_mode->depth;
 
-	new_screen_size = width * height * ((new_depth)>>3);
-	new_screen_size += 256; /* To align on a 256 byte adress */	
+	lineWidth = (*XBIOS_getLineWidth)(this, new_video_mode, width, new_depth);
+
+	new_screen_size = lineWidth * height;
+	new_screen_size += 255; /* To align on a 256 byte adress */
 
 	if (new_video_mode->flags & XBIOSMODE_C2P) {
-		XBIOS_shadowscreen = Atari_SysMalloc(new_screen_size, MX_PREFTTRAM);
+		XBIOS_shadowscreenmem = Atari_SysMalloc(new_screen_size, MX_PREFTTRAM);
 
-		if (XBIOS_shadowscreen == NULL) {
+		if (XBIOS_shadowscreenmem == NULL) {
 			SDL_SetError("Can not allocate %d KB for shadow buffer", new_screen_size>>10);
 			return (NULL);
 		}
-		SDL_memset(XBIOS_shadowscreen, 0, new_screen_size);
+		SDL_memset(XBIOS_shadowscreenmem, 0, new_screen_size);
+
+		XBIOS_shadowscreen=(void *) (( (long) XBIOS_shadowscreenmem+255) & 0xFFFFFF00UL);
 	}
 
 	/* Output buffer needs to be twice in size for the software double-line mode */
 	if (new_video_mode->flags & XBIOSMODE_DOUBLELINE) {
 		new_screen_size <<= 1;
+	}
+	/* Output buffer for 4-bit modes is just half the size */
+	if (new_video_mode->depth == 4) {
+		new_screen_size >>= 1;
 	}
 
 	/* Double buffer ? */
@@ -718,54 +486,54 @@ static SDL_Surface *XBIOS_SetVideoMode(_THIS, SDL_Surface *current,
 		}
 	}
 #endif
-	if ((flags & SDL_DOUBLEBUF) && ((XBIOS_cvdo>>16) != VDO_MILAN)) {
+	if (flags & SDL_DOUBLEBUF) {
 		num_buffers = 2;
 		modeflags |= SDL_DOUBLEBUF;
 	}
 
 	/* Allocate buffers */
-	for (i=0; i<num_buffers; i++) {
-		if ((XBIOS_cvdo>>16) == VDO_MILAN) {
-			if (i==0) {
-				XBIOS_screensmem[i] = XBIOS_oldvbase;
-			} else {
-				VsetScreen(-1, &XBIOS_screensmem[i], MI_MAGIC, CMD_ALLOCPAGE);
-			}
-		} else {
-			XBIOS_screensmem[i] = Atari_SysMalloc(new_screen_size, MX_STRAM);
-		}
+	if (!(*XBIOS_allocVbuffers)(this, new_video_mode, num_buffers, new_screen_size)) {
+		XBIOS_FreeBuffers(this);
+		return (NULL);
+	}
 
-		if (XBIOS_screensmem[i]==NULL) {
-			XBIOS_FreeBuffers(this);
-			SDL_SetError("Can not allocate %d KB for buffer %d", new_screen_size>>10, i);
-			return (NULL);
-		}
-		SDL_memset(XBIOS_screensmem[i], 0, new_screen_size);
-
-		XBIOS_screens[i]=(void *) (( (long) XBIOS_screensmem[i]+256) & 0xFFFFFF00UL);
+	if ((flags & SDL_HWSURFACE) == SDL_SWSURFACE && !(new_video_mode->flags & XBIOSMODE_C2P)
+			&& (cookie_nova || ((long) XBIOS_screens[0]) >= 0x01000000 || Atari_SysMalloc(-1L, MX_TTRAM) != NULL)) {
+		/* If asked for a software surface, returning a hardware one leads to usage
+		 * of the shadow buffer which is what we want. However if there's only
+		 * ST RAM available and no graphics card, there's no point in creating
+		 * the shadow buffer.
+		 */
+		modeflags |= SDL_HWSURFACE;
 	}
 
 	/* Allocate the new pixel format for the screen */
-	if ( ! SDL_ReallocFormat(current, new_depth, 0, 0, 0, 0) ) {
+	(*XBIOS_getScreenFormat)(this, new_depth, &rmask, &gmask, &bmask, &amask);
+
+	if (!SDL_ReallocFormat(current, new_depth, rmask, gmask, bmask, amask)) {
 		XBIOS_FreeBuffers(this);
 		SDL_SetError("Couldn't allocate new pixel format for requested mode");
 		return(NULL);
 	}
 
+	/* this is for C2P conversion */
+	XBIOS_pitch = (*XBIOS_getLineWidth)(this, new_video_mode, new_video_mode->width, new_video_mode->depth);
+
+	/* XBIOS_setMode() is going to call SetScreen(XBIOS_screens[0])
+	 * and XBIOS_swapVbuffers() is going to call Setscreen(XBIOS_screens[XBIOS_fbnum])
+	 * so these can't be the same buffers if double buffering has been requested.
+	 */
+	XBIOS_fbnum = num_buffers-1;
 	XBIOS_current = new_video_mode;
+
 	current->w = width;
 	current->h = height;
-	current->pitch = (width * new_depth)>>3;
+	current->pitch = lineWidth;
 
-	/* this is for C2P conversion */
-	XBIOS_pitch = (new_video_mode->width * new_video_mode->depth)>>3;
-
-	if (new_video_mode->flags & XBIOSMODE_C2P)
+	if (XBIOS_shadowscreen)
 		current->pixels = XBIOS_shadowscreen;
 	else
-		current->pixels = XBIOS_screens[0];
-
-	XBIOS_fbnum = 0;
+		current->pixels = XBIOS_screens[XBIOS_fbnum];
 
 #if SDL_VIDEO_OPENGL
 	if (flags & SDL_OPENGL) {
@@ -783,66 +551,12 @@ static SDL_Surface *XBIOS_SetVideoMode(_THIS, SDL_Surface *current,
 
 #ifndef DEBUG_VIDEO_XBIOS
 	/* Now set the video mode */
-	if ((XBIOS_cvdo>>16) == VDO_MILAN) {
-		VsetScreen(-1, XBIOS_screens[0], MI_MAGIC, CMD_SETADR);
-	} else {
-		Setscreen(-1,XBIOS_screens[0],-1);
-	}
+	(*XBIOS_setMode)(this, new_video_mode);
 
-	switch(XBIOS_cvdo >> 16) {
-		case VDO_ST:
-			Setscreen(-1,-1,new_video_mode->number);
-
-			/* Reset palette */
-			for (i=0;i<16;i++) {
-				TT_palette[i]= ((i>>1)<<8) | (((i*8)/17)<<4) | (i>>1);
-			}
-			Setpalette(TT_palette);
-			break;
-		case VDO_STE:
-			Setscreen(-1,-1,new_video_mode->number);
-
-			/* Reset palette */
-			for (i=0;i<16;i++)
-			{
-				int c;
-
-				c=((i&1)<<3)|((i>>1)&7);
-				TT_palette[i]=(c<<8)|(c<<4)|c;
-			}
-			Setpalette(TT_palette);
-			break;
-		case VDO_TT:
-			EsetShift(new_video_mode->number);
-			break;
-		case VDO_F30:
-			if (XBIOS_centscreen) {
-				SDL_XBIOS_CentscreenSetmode(this, width, height, new_depth);
-			} else {
-				VsetMode(new_video_mode->number);
-			}
-
-			/* Set hardware palette to black in True Colour */
-			if (new_depth > 8) {
-				SDL_memset(F30_palette, 0, sizeof(F30_palette));
-				VsetRGB(0,256,F30_palette);
-			}
-			break;
-		case VDO_MILAN:
-			VsetScreen(-1, new_video_mode->number, MI_MAGIC, CMD_SETMODE);
-
-			/* Set hardware palette to black in True Colour */
-			if (new_depth > 8) {
-				SDL_memset(F30_palette, 0, sizeof(F30_palette));
-				VsetRGB(0,256,F30_palette);
-			}
-			break;
-	}
-
-	Vsync();
+	(*XBIOS_vsync)(this);
 #endif
 
-	this->UpdateRects = XBIOS_UpdateRects;
+	this->UpdateRects = XBIOS_updRects;
 
 	return (current);
 }
@@ -870,203 +584,136 @@ static void XBIOS_UnlockHWSurface(_THIS, SDL_Surface *surface)
 
 static void XBIOS_UpdateRects(_THIS, int numrects, SDL_Rect *rects)
 {
-	SDL_Surface *surface;
+	/* SDL_UpdateRects() already added surface->offset_[xy] to each rect's coordinates */
+	SDL_Surface *surface = this->screen;
 
-	surface = this->screen;
+	if (this->shadow && !shadow_warning_shown) {
+		fprintf(stderr, "Warning: shadow buffer in use due to SDL_SetVideoMode(SDL_SWSURFACE)\n");
+		shadow_warning_shown = SDL_TRUE;
+	}
+
+	/*
+	 * SDL_LockSurface() adds surface->offset to surface->pixels
+	 * NOTE: documentation explicitly discourages to call this
+	 *       function while the screen surface is locked
+	 */
+	int src_offset = (surface->locked ? -surface->offset : 0);
+	int i;
 
 	if (XBIOS_current->flags & XBIOSMODE_C2P) {
-		int i;
-		int doubleline = (XBIOS_current->flags & XBIOSMODE_DOUBLELINE ? 1 : 0);
+		const int doubleline = (XBIOS_current->flags & XBIOSMODE_DOUBLELINE ? 1 : 0);
 
 		for (i=0;i<numrects;i++) {
-			void *source,*destination;
 			int x1,x2;
 
 			x1 = rects[i].x & ~15;
-			x2 = rects[i].x+rects[i].w;
+			x2 = rects[i].x + rects[i].w;
 			if (x2 & 15) {
 				x2 = (x2 | 15) +1;
 			}
 
-			source = surface->pixels;
-			source += surface->pitch * rects[i].y;
-			source += x1;
-
-			destination = XBIOS_screens[XBIOS_fbnum];
-			destination += XBIOS_pitch * rects[i].y;
-			destination += x1;
-
 			/* Convert chunky to planar screen */
 			SDL_Atari_C2pConvert(
-				source,
-				destination,
-				x2-x1,
-				rects[i].h,
-				doubleline,
-				surface->pitch,
-				XBIOS_pitch
+				surface->pixels + src_offset, XBIOS_screens[XBIOS_fbnum],
+				x1, rects[i].y,
+				x2-x1, rects[i].h,
+				doubleline, XBIOS_current->depth,
+				surface->pitch, XBIOS_pitch
 			);
 		}
 	}
 
+	if ((surface->flags & SDL_DOUBLEBUF) == SDL_DOUBLEBUF) {
 #ifndef DEBUG_VIDEO_XBIOS
-	if ((XBIOS_cvdo>>16) == VDO_MILAN) {
-		VsetScreen(-1, XBIOS_screens[XBIOS_fbnum], MI_MAGIC, CMD_SETADR);
-	} else {
-		Setscreen(-1,XBIOS_screens[XBIOS_fbnum],-1);
-	}
+		if ((cookie_vdo >> 16) != VDO_F30) {
+			(*XBIOS_swapVbuffers)(this);
 
-	Vsync();
+			(*XBIOS_vsync)(this);
+		} else {
+			/* Make sure that the Videl registers are updated during vertical retrace */
+			(*XBIOS_vsync)(this);
+
+			(*XBIOS_swapVbuffers)(this);
+		}
 #endif
 
-	if ((surface->flags & SDL_DOUBLEBUF) == SDL_DOUBLEBUF) {
 		XBIOS_fbnum ^= 1;
-		if ((XBIOS_current->flags & XBIOSMODE_C2P) == 0) {
-			surface->pixels=XBIOS_screens[XBIOS_fbnum];
+		if (!XBIOS_shadowscreen) {
+			src_offset = (surface->locked ? surface->offset : 0);
+			surface->pixels=((Uint8 *) XBIOS_screens[XBIOS_fbnum]) + src_offset;
 		}
 	}
 }
 
 static int XBIOS_FlipHWSurface(_THIS, SDL_Surface *surface)
 {
+	/* SDL_LockSurface() adds surface->offset to surface->pixels */
+	int src_offset = (surface->locked ? 0 : surface->offset);
+	int dst_offset;
+
+	if (this->shadow && !shadow_warning_shown) {
+		fprintf(stderr, "Warning: shadow buffer in use due to SDL_SetVideoMode(SDL_SWSURFACE)\n");
+		shadow_warning_shown = SDL_TRUE;
+	}
+
 	if (XBIOS_current->flags & XBIOSMODE_C2P) {
-		void *destscr;
-		int destx;
-		int doubleline = (XBIOS_current->flags & XBIOSMODE_DOUBLELINE ? 1 : 0);
-			
-		/* Center on destination screen */
-		destscr = XBIOS_screens[XBIOS_fbnum];
-		destscr += XBIOS_pitch * ((XBIOS_current->height - surface->h) >> 1);
-		destx = (XBIOS_current->width - surface->w) >> 1;
-		destx &= ~15;
-		destscr += destx;
+		const int doubleline = (XBIOS_current->flags & XBIOSMODE_DOUBLELINE ? 1 : 0);
+
+		dst_offset = this->offset_y * (XBIOS_pitch << doubleline) +
+				(this->offset_x & ~15) * XBIOS_current->depth / 8;
 
 		/* Convert chunky to planar screen */
 		SDL_Atari_C2pConvert(
-			surface->pixels,
-			destscr,
-			surface->w,
-			surface->h,
-			doubleline,
-			surface->pitch,
-			XBIOS_pitch
+			surface->pixels + src_offset, ((Uint8 *)XBIOS_screens[XBIOS_fbnum]) + dst_offset,
+			0, 0,
+			surface->w, surface->h,
+			doubleline, XBIOS_current->depth,
+			surface->pitch, XBIOS_pitch
 		);
 	}
 
+	if ((surface->flags & SDL_DOUBLEBUF) == SDL_DOUBLEBUF) {
 #ifndef DEBUG_VIDEO_XBIOS
-	if ((XBIOS_cvdo>>16) == VDO_MILAN) {
-		VsetScreen(-1, XBIOS_screens[XBIOS_fbnum], MI_MAGIC, CMD_SETADR);
-	} else {
-		Setscreen(-1,XBIOS_screens[XBIOS_fbnum],-1);
-	}
+		if ((cookie_vdo >> 16) != VDO_F30) {
+			(*XBIOS_swapVbuffers)(this);
 
-	Vsync();
+			(*XBIOS_vsync)(this);
+		} else {
+			/* Make sure that the Videl registers are updated during vertical retrace */
+			(*XBIOS_vsync)(this);
+
+			(*XBIOS_swapVbuffers)(this);
+		}
 #endif
 
-	if ((surface->flags & SDL_DOUBLEBUF) == SDL_DOUBLEBUF) {
 		XBIOS_fbnum ^= 1;
-		if ((XBIOS_current->flags & XBIOSMODE_C2P) == 0) {
-			surface->pixels=XBIOS_screens[XBIOS_fbnum];
+		if (!XBIOS_shadowscreen) {
+			src_offset = (surface->locked ? surface->offset : 0);
+			surface->pixels=((Uint8 *) XBIOS_screens[XBIOS_fbnum]) + src_offset;
 		}
 	}
 
 	return(0);
 }
 
-static int XBIOS_SetColors(_THIS, int firstcolor, int ncolors, SDL_Color *colors)
-{
-#ifndef DEBUG_VIDEO_XBIOS
-	int		i;
-	int		r,v,b;
-
-	switch( XBIOS_cvdo >> 16) {
-		case VDO_ST:
-		case VDO_STE:
-		 	for (i=0;i<ncolors;i++)
-			{
-				r = colors[i].r;	
-				v = colors[i].g;
-				b = colors[i].b;
-
-				TT_palette[firstcolor+i]=((r*30)+(v*59)+(b*11))/100;
-			}
-			SDL_Atari_C2pConvert4_pal(TT_palette); /* convert the lighting */
-			break;
-		case VDO_TT:
-			for(i = 0; i < ncolors; i++)
-			{
-				r = colors[i].r;	
-				v = colors[i].g;
-				b = colors[i].b;
-					
-				TT_palette[i]=((r>>4)<<8)|((v>>4)<<4)|(b>>4);
-			}
-			EsetPalette(firstcolor,ncolors,TT_palette);
-			break;
-		case VDO_F30:
-		case VDO_MILAN:
-			for(i = 0; i < ncolors; i++)
-			{
-				r = colors[i].r;	
-				v = colors[i].g;
-				b = colors[i].b;
-
-				F30_palette[i]=(r<<16)|(v<<8)|b;
-			}
-			VsetRGB(firstcolor,ncolors,F30_palette);
-			break;
-	}
-#endif
-
-	return(1);
-}
-
 /* Note:  If we are terminated, this could be called in the middle of
-   another SDL video routine -- notably UpdateRects.
+   another SDL video routine -- notably UpdateRects. Also, when quitting
+   from XBIOS_VideoInit(), this function isn't really prepared for it.
 */
 static void XBIOS_VideoQuit(_THIS)
 {
 	int i,j;
 
-	Atari_ShutdownEvents();
+	/* Restore CON: */
+	SDL_Atari_RestoreConsoleSettings();
+
+	(*XBIOS_ShutdownEvents)(this);
 
 	/* Restore video mode and palette */
 #ifndef DEBUG_VIDEO_XBIOS
-	switch(XBIOS_cvdo >> 16) {
-		case VDO_ST:
-		case VDO_STE:
-			Setscreen(-1,XBIOS_oldvbase,XBIOS_oldvmode);
-			if (XBIOS_oldnumcol) {
-				Setpalette(XBIOS_oldpalette);
-			}
-			break;
-		case VDO_TT:
-			Setscreen(-1,XBIOS_oldvbase,-1);
-			EsetShift(XBIOS_oldvmode);
-			if (XBIOS_oldnumcol) {
-				EsetPalette(0, XBIOS_oldnumcol, XBIOS_oldpalette);
-			}
-			break;
-		case VDO_F30:
-			Setscreen(-1, XBIOS_oldvbase, -1);
-			if (XBIOS_centscreen) {
-				SDL_XBIOS_CentscreenRestore(this, XBIOS_oldvmode);
-			} else {
-				VsetMode(XBIOS_oldvmode);
-			}
-			if (XBIOS_oldnumcol) {
-				VsetRGB(0, XBIOS_oldnumcol, XBIOS_oldpalette);
-			}
-			break;
-		case VDO_MILAN:
-			VsetScreen(-1, &XBIOS_oldvbase, MI_MAGIC, CMD_SETADR);
-			VsetScreen(-1, &XBIOS_oldvmode, MI_MAGIC, CMD_SETMODE);
-			if (XBIOS_oldnumcol) {
-				VsetRGB(0, XBIOS_oldnumcol, XBIOS_oldpalette);
-			}
-			break;
-	}
-	Vsync();
+	(*XBIOS_restoreMode)(this);
+
+	(*XBIOS_vsync)(this);
 #endif
 
 #if SDL_VIDEO_OPENGL
@@ -1075,10 +722,10 @@ static void XBIOS_VideoQuit(_THIS)
 	}
 #endif
 
-	if (XBIOS_oldpalette) {
-		SDL_free(XBIOS_oldpalette);
-		XBIOS_oldpalette=NULL;
-	}
+	GEM_CommonRestorePalette(this);
+
+	GEM_CommonQuit(this, SDL_TRUE);
+
 	XBIOS_FreeBuffers(this);
 
 	/* Free mode list */
@@ -1097,11 +744,11 @@ static void XBIOS_VideoQuit(_THIS)
 		}
 	}
 
-	this->screen->pixels = NULL;	
+	this->screen->pixels = NULL;
 
 	/* Restore screensavers */
 	if (SDL_XBIOS_TveillePresent(this)) {
-		SDL_XBIOS_TveilleRestore(this);
+		SDL_XBIOS_TveilleEnable(this);
 	}
 }
 

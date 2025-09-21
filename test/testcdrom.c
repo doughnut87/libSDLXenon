@@ -17,8 +17,8 @@ static void quit(int rc)
 
 static void PrintStatus(int driveindex, SDL_CD *cdrom)
 {
+	const char *status_str = "unknown";
 	CDstatus status;
-	char *status_str;
 
 	status = SDL_CDStatus(cdrom);
 	switch (status) {
@@ -51,7 +51,7 @@ static void ListTracks(SDL_CD *cdrom)
 {
 	int i;
 	int m, s, f;
-	char* trtype;
+	const char *trtype;
 
 	SDL_CDStatus(cdrom);
 	printf("Drive tracks: %d\n", cdrom->numtracks);

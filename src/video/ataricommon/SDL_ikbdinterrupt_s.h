@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -55,7 +55,7 @@ extern Uint16 SDL_AtariIkbd_enabled;
 										
 /* Functions */ 
 
-extern void SDL_AtariIkbdInstall(void);
-extern void SDL_AtariIkbdUninstall(void);
+extern void SDL_AtariIkbd_Install(void);
+extern void SDL_AtariIkbd_Restore(void);
 
 #endif /* _SDL_IKBDINTERRUPT_S_H_ */

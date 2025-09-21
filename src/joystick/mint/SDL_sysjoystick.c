@@ -1,6 +1,6 @@
 /*
     SDL - Simple DirectMedia Layer
-    Copyright (C) 1997-2009 Sam Lantinga
+    Copyright (C) 1997-2012 Sam Lantinga
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Lesser General Public
@@ -206,7 +206,7 @@ static const Uint32 teamtap_ghosts[20][4]={
 
 typedef struct {
 	SDL_bool enabled;
-	unsigned char *name;
+	char *name;
 	Uint32 prevstate;
 } atarijoy_t;
 
@@ -264,7 +264,7 @@ static void UpdateJoypads(void);
 int SDL_SYS_JoystickInit(void)
 {
 	int i;
-	unsigned long cookie_mch;
+	long cookie_mch;
 	const char *envr=SDL_getenv("SDL_JOYSTICK_ATARI");
 	
 #define TEST_JOY_ENABLED(env,idstring,num) \
@@ -339,7 +339,7 @@ int SDL_SYS_JoystickInit(void)
 		}
 
 		if (!atarijoysticks[IKBD_JOY1].enabled) {
-			if (SDL_AtariXbios_enabled!=0) {
+			if (SDL_AtariXbios_enabled) {
 				TEST_JOY_ENABLED(envr, "xbios-joy1", XBIOS_JOY1);
 			}
 		}
@@ -505,9 +505,11 @@ void SDL_SYS_JoystickUpdate(SDL_Joystick *joystick)
 
 				if (numjoystick==IKBD_JOY1) {
 					curstate = SDL_AtariIkbd_joystick & 0xff;
+					curstate |= (SDL_AtariIkbd_mouseb & 0x01) << 7;
 				}
 				if (numjoystick==XBIOS_JOY1) {
 					curstate = SDL_AtariXbios_joystick & 0xff;
+					curstate |= (SDL_AtariXbios_mouseb & 0x01) << 7;
 				}
 
 				if (curstate != prevstate) {
